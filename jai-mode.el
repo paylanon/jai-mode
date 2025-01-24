@@ -1,3 +1,7 @@
+;; **This assumes a convention of 2 space indentation after a case statement (see case statements in Basic module).**
+
+;; Function `jai-indent-line` encapsulates the indent-on-parantheses hook used previously, as well as the above, as well as a fix for borked indentation when using compiler directives. `js-indent-line` still used as base, just a wrapper!
+
 ;;; jai-mode.el --- Major mode for JAI  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2015-2023  Kristoffer Grönlund
@@ -191,14 +195,39 @@
 ;; NOTE: taken from the scala-indent package and modified for Jai.
 ;;   Still uses the js-indent-line as a base, which will have to be
 ;;   replaced when the language is more mature.
-(defun jai--indent-on-parentheses ()
-  (when (and (= (char-syntax (char-before)) ?\))
-             (= (save-excursion (back-to-indentation) (point)) (1- (point))))
-    (js-indent-line)))
-
-(defun jai--add-self-insert-hooks ()
-  (add-hook 'post-self-insert-hook
-            'jai--indent-on-parentheses))
+(defun jai-indent-line ()
+  "Indent current line as Jai code."
+  (interactive)
+  (let* ((case-regexp "^[[:space:]]*case.*;$")
+	 (directive-regexp "^[[:space:]]*#")
+         (prev-line
+          (save-excursion
+            (forward-line -1)
+            (thing-at-point 'line t)))
+         (prev-indent
+          (save-excursion
+            (forward-line -1)
+            (current-indentation)))	 
+         ;; (case-indent
+         ;;  (save-excursion
+         ;;    (forward-line -1)
+         ;;    (beginning-of-line)
+         ;;    (when (looking-at-p case-regexp)
+         ;;      (current-indentation))))
+         (current-line (thing-at-point 'line t)))
+    (cond
+     ;; no indent after # directives
+     ((or (and prev-line (string-match-p directive-regexp prev-line))
+          (and current-line (string-match-p directive-regexp current-line)))
+      (indent-line-to prev-indent))
+     ;; indent on case
+     ;; (case-indent
+     ;;  (indent-line-to
+     ;;   (if (string-match-p case-regexp current-line)
+     ;;       case-indent
+     ;;     (+ case-indent 2))))
+     ;; base indentation
+     (t (js-indent-line)))))
 
 ;;;###autoload
 (define-derived-mode jai-mode jai-parent-mode "Jai"
@@ -211,13 +240,10 @@
   (setq-local comment-start "//")
   (setq-local block-comment-start "/*")
   (setq-local block-comment-end "*/")
-  (setq-local indent-line-function 'js-indent-line)
+  (setq-local indent-line-function 'jai-indent-line)
   (setq-local font-lock-defaults '(jai-font-lock-defaults))
   (setq-local beginning-of-defun-function 'jai-beginning-of-defun)
   (setq-local end-of-defun-function 'jai-end-of-defun)
-
-  ;; add indent functionality to some characters
-  (jai--add-self-insert-hooks)
 
   (font-lock-ensure))
 
